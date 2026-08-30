@@ -1,106 +1,130 @@
 name: COPR Build
 
 on:
-push:
-tags:
-- "v*.*.*"
+  push:
+    tags:
+      - "v*.*.*"
+
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to build (for example: v1.0.0)"
+        required: true
+        type: string
 
 permissions:
-contents: read
+  contents: read
 
 concurrency:
-group: copr-${{ github.ref }}
-cancel-in-progress: false
+  group: copr-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+  cancel-in-progress: false
 
 jobs:
-copr-build:
-name: Build in COPR
-runs-on: ubuntu-latest
+  copr-build:
+    name: Build in COPR
+    runs-on: ubuntu-latest
 
-```
-container:
-  image: fedora:latest
+    container:
+      image: fedora:latest
 
-steps:
-  - name: Install COPR client
-    shell: bash
-    run: |
-      set -Eeuo pipefail
+    steps:
+      - name: Install COPR client
+        shell: bash
+        run: |
+          set -Eeuo pipefail
 
-      dnf install -y \
-          copr-cli \
-          git
+          dnf install -y \
+              copr-cli \
+              git
 
-  - name: Check out repository
-    uses: actions/checkout@v7
-    with:
-      fetch-depth: 0
+      - name: Determine release tag
+        shell: bash
+        env:
+          MANUAL_TAG: ${{ inputs.tag }}
+        run: |
+          set -Eeuo pipefail
 
-  - name: Validate tag against spec
-    shell: bash
-    run: |
-      set -Eeuo pipefail
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+              TAG="$MANUAL_TAG"
+          else
+              TAG="$GITHUB_REF_NAME"
+          fi
 
-      TAG="${GITHUB_REF_NAME}"
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "::error::Invalid release tag: $TAG"
+              exit 1
+          fi
 
-      if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-          echo "::error::Invalid release tag: $TAG"
-          exit 1
-      fi
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
 
-      VERSION="${TAG#v}"
+          printf 'Release tag: %s\n' "$TAG"
 
-      SPEC_VERSION="$(
-          awk '
-              $1 == "Version:" {
-                  print $2
-                  exit
-              }
-          ' vmware.spec
-      )"
+      - name: Check out release tag
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
 
-      if [[ -z "$SPEC_VERSION" ]]; then
-          echo "::error::Unable to read Version from vmware.spec"
-          exit 1
-      fi
+      - name: Validate tag against spec
+        shell: bash
+        run: |
+          set -Eeuo pipefail
 
-      if [[ "$VERSION" != "$SPEC_VERSION" ]]; then
-          echo "::error::Tag version ($VERSION) does not match vmware.spec ($SPEC_VERSION)"
-          exit 1
-      fi
+          VERSION="${TAG#v}"
 
-  - name: Configure COPR authentication
-    shell: bash
-    env:
-      COPR_CONFIG: ${{ secrets.COPR_CONFIG }}
-    run: |
-      set -Eeuo pipefail
+          SPEC_VERSION="$(
+              awk '
+                  $1 == "Version:" {
+                      print $2
+                      exit
+                  }
+              ' vmware.spec
+          )"
 
-      if [[ -z "$COPR_CONFIG" ]]; then
-          echo "::error::COPR_CONFIG secret is not configured"
-          exit 1
-      fi
+          if [[ -z "$SPEC_VERSION" ]]; then
+              echo "::error::Unable to read Version from vmware.spec"
+              exit 1
+          fi
 
-      mkdir -p "$HOME/.config"
+          if [[ "$VERSION" != "$SPEC_VERSION" ]]; then
+              echo "::error::Tag version ($VERSION) does not match vmware.spec ($SPEC_VERSION)"
+              exit 1
+          fi
 
-      printf '%s\n' "$COPR_CONFIG" \
-          > "$HOME/.config/copr"
+          printf 'Tag version : %s\n' "$VERSION"
+          printf 'SPEC version: %s\n' "$SPEC_VERSION"
 
-      chmod 600 "$HOME/.config/copr"
+      - name: Configure COPR authentication
+        shell: bash
+        env:
+          COPR_CONFIG: ${{ secrets.COPR_CONFIG }}
+        run: |
+          set -Eeuo pipefail
 
-  - name: Verify COPR authentication
-    shell: bash
-    run: |
-      set -Eeuo pipefail
+          if [[ -z "$COPR_CONFIG" ]]; then
+              echo "::error::COPR_CONFIG secret is not configured"
+              exit 1
+          fi
 
-      copr-cli whoami
+          mkdir -p "$HOME/.config"
 
-  - name: Trigger COPR package build
-    shell: bash
-    run: |
-      set -Eeuo pipefail
+          printf '%s\n' "$COPR_CONFIG" \
+              > "$HOME/.config/copr"
 
-      copr-cli build-package \
-          hhlp/vmware \
-          --name vmware-manager
-```
+          chmod 600 "$HOME/.config/copr"
+
+      - name: Verify COPR authentication
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          copr-cli whoami
+
+      - name: Trigger COPR package build
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          copr-cli build-package \
+              hhlp/vmware \
+              --name vmware-manager
