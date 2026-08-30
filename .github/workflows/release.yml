@@ -1,0 +1,102 @@
+name: GitHub Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Publish GitHub Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Validate release tag
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          TAG="${GITHUB_REF_NAME}"
+
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "::error::Invalid release tag: $TAG"
+              exit 1
+          fi
+
+          VERSION="${TAG#v}"
+
+          SPEC_VERSION="$(
+              awk '
+                  $1 == "Version:" {
+                      print $2
+                      exit
+                  }
+              ' vmware.spec
+          )"
+
+          if [[ -z "$SPEC_VERSION" ]]; then
+              echo "::error::Unable to read Version from vmware.spec"
+              exit 1
+          fi
+
+          if [[ "$VERSION" != "$SPEC_VERSION" ]]; then
+              echo "::error::Tag version ($VERSION) does not match vmware.spec ($SPEC_VERSION)"
+              exit 1
+          fi
+
+          if ! grep -Eq \
+              "^## \[$VERSION\] - [0-9]{4}-[0-9]{2}-[0-9]{2}$" \
+              CHANGELOG.md
+          then
+              echo "::error::CHANGELOG.md has no release section for $VERSION"
+              exit 1
+          fi
+
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Extract release notes
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          awk \
+              -v version="$VERSION" '
+              $0 ~ "^## \\[" version "\\] - " {
+                  found = 1
+                  next
+              }
+
+              found && /^## \[/ {
+                  exit
+              }
+
+              found {
+                  print
+              }
+          ' CHANGELOG.md > release-notes.md
+
+          if [[ ! -s release-notes.md ]]; then
+              echo "::error::Release notes are empty"
+              exit 1
+          fi
+
+          cat release-notes.md
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          body_path: release-notes.md
+          prerelease: false
+          make_latest: true

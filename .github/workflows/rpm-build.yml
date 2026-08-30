@@ -1,0 +1,147 @@
+name: RPM Build
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "vmwmanager.sh"
+      - "vmware.spec"
+      - "README.md"
+      - "FAQ.md"
+      - "TEST.md"
+      - "CONTRIBUTING.md"
+      - "SECURITY.md"
+      - "CHANGELOG.md"
+      - "scripts/prepare-release.sh"
+      - ".github/workflows/rpm-build.yml"
+      - ".github/workflows/release.yml"
+      - ".github/workflows/copr-build.yml"
+
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "vmwmanager.sh"
+      - "vmware.spec"
+      - "README.md"
+      - "FAQ.md"
+      - "TEST.md"
+      - "CONTRIBUTING.md"
+      - "SECURITY.md"
+      - "CHANGELOG.md"
+      - "scripts/prepare-release.sh"
+      - ".github/workflows/rpm-build.yml"
+      - ".github/workflows/release.yml"
+      - ".github/workflows/copr-build.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  rpm-build:
+    name: Build RPM
+    runs-on: ubuntu-latest
+
+    container:
+      image: fedora:latest
+
+    steps:
+      - name: Install build tools
+        run: |
+          dnf install -y \
+              git \
+              rpm-build \
+              rpmdevtools
+
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Configure Git safe directory
+        run: |
+          git config --global \
+              --add safe.directory \
+              "$GITHUB_WORKSPACE"
+
+      - name: Read package version
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          VERSION="$(
+              awk '
+                  $1 == "Version:" {
+                      print $2
+                      exit
+                  }
+              ' vmware.spec
+          )"
+
+          if [[ -z "$VERSION" ]]; then
+              echo "::error::Unable to read Version from vmware.spec"
+              exit 1
+          fi
+
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Prepare RPM tree
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          rpmdev-setuptree
+
+          git archive \
+              --format=tar.gz \
+              --prefix="vmware-${VERSION}/" \
+              HEAD \
+              > "$HOME/rpmbuild/SOURCES/vmware-${VERSION}.tar.gz"
+
+      - name: Build source and binary RPM
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          rpmbuild \
+              -ba \
+              vmware.spec
+
+      - name: Show generated packages
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          find "$HOME/rpmbuild" \
+              -type f \
+              \( -name '*.rpm' -o -name '*.src.rpm' \) \
+              -print
+
+      - name: Verify RPM contents
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          RPM="$(
+              find "$HOME/rpmbuild/RPMS" \
+                  -type f \
+                  -name 'vmware-manager-*.rpm' \
+                  -print \
+                  -quit
+          )"
+
+          if [[ -z "$RPM" ]]; then
+              echo "::error::Binary RPM not found"
+              exit 1
+          fi
+
+          rpm -qlp "$RPM"
+
+          rpm -qlp "$RPM" |
+              grep -Fx '/usr/bin/vmwmanager'
+
+          if rpm -qlp "$RPM" |
+              grep -Fq '/etc/systemd/system/vmware-rebuild.service'
+          then
+              echo "::error::RPM must not own vmware-rebuild.service"
+              exit 1
+          fi

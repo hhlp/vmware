@@ -1,0 +1,98 @@
+name: COPR Build
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: copr-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  copr-build:
+    name: Build in COPR
+    runs-on: ubuntu-latest
+
+    container:
+      image: fedora:latest
+
+    steps:
+      - name: Install COPR client
+        run: |
+          dnf install -y \
+              copr-cli \
+              git
+
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Validate tag against spec
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          TAG="${GITHUB_REF_NAME}"
+
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "::error::Invalid release tag: $TAG"
+              exit 1
+          fi
+
+          VERSION="${TAG#v}"
+
+          SPEC_VERSION="$(
+              awk '
+                  $1 == "Version:" {
+                      print $2
+                      exit
+                  }
+              ' vmware.spec
+          )"
+
+          if [[ "$VERSION" != "$SPEC_VERSION" ]]; then
+              echo "::error::Tag version ($VERSION) does not match vmware.spec ($SPEC_VERSION)"
+              exit 1
+          fi
+
+      - name: Configure COPR authentication
+        shell: bash
+        env:
+          COPR_LOGIN: ${{ secrets.COPR_LOGIN }}
+          COPR_TOKEN: ${{ secrets.COPR_TOKEN }}
+          COPR_USERNAME: ${{ secrets.COPR_USERNAME }}
+        run: |
+          set -Eeuo pipefail
+
+          mkdir -p "$HOME/.config"
+
+          cat > "$HOME/.config/copr" <<EOF
+          [copr-cli]
+          login = ${COPR_LOGIN}
+          username = ${COPR_USERNAME}
+          token = ${COPR_TOKEN}
+          copr_url = https://copr.fedorainfracloud.org
+          EOF
+
+          chmod 600 "$HOME/.config/copr"
+
+      - name: Verify COPR authentication
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          copr-cli whoami
+
+      - name: Trigger COPR package build
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          copr-cli build-package \
+              hhlp/vmware \
+              --name vmware-manager

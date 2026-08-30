@@ -1,0 +1,42 @@
+name: ShellCheck
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "vmwmanager.sh"
+      - "scripts/prepare-release.sh"
+      - ".github/workflows/shellcheck.yml"
+
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "vmwmanager.sh"
+      - "scripts/prepare-release.sh"
+      - ".github/workflows/shellcheck.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  shellcheck:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Install ShellCheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+
+      - name: Run ShellCheck
+        run: |
+          set -Eeuo pipefail
+
+          shellcheck vmwmanager.sh
+          shellcheck scripts/prepare-release.sh
