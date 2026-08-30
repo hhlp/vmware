@@ -95,7 +95,10 @@ jobs:
               --format=tar.gz \
               --prefix="vmware-${VERSION}/" \
               HEAD \
-              > "$HOME/rpmbuild/SOURCES/vmware-${VERSION}.tar.gz"
+              > "$HOME/rpmbuild/SOURCES/v${VERSION}.tar.gz"
+
+          test -s \
+              "$HOME/rpmbuild/SOURCES/v${VERSION}.tar.gz"
 
       - name: Build source and binary RPM
         shell: bash
