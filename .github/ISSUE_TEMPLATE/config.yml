@@ -1,11 +1,10 @@
 blank_issues_enabled: false
 
 contact_links:
+  - name: VMware host modules upstream
+    url: https://github.com/mkubecek/vmware-host-modules/issues
+    about: Report VMware kernel compatibility, module source, or upstream patch problems here.
 
-* name: VMware host modules upstream
-  url: https://github.com/mkubecek/vmware-host-modules/issues
-  about: Report VMware kernel compatibility, module source, or upstream patch problems here.
-
-* name: VMware host modules project
-  url: https://github.com/mkubecek/vmware-host-modules
-  about: Review upstream VMware host module sources, supported VMware versions, branches, and compatibility information.
+  - name: VMware host modules project
+    url: https://github.com/mkubecek/vmware-host-modules
+    about: Review upstream VMware host module sources, supported VMware versions, branches, and compatibility information.
