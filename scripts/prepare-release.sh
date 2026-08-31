@@ -12,18 +12,19 @@ Usage:
     ./scripts/prepare-release.sh VERSION
 
 Example:
-    ./scripts/prepare-release.sh 1.0.1
+    ./scripts/prepare-release.sh 1.0.4
 
 The script:
 
     1. Reads the current [Unreleased] section from CHANGELOG.md
     2. Creates the new release section
-    3. Updates Version: in vmware.spec
-    4. Generates the RPM %changelog entry
-    5. Updates CHANGELOG comparison links
-    6. Validates the generated CHANGELOG
-    7. Validates the generated SPEC
-    8. Validates the SPEC with rpmspec when available
+    3. Recreates an empty [Unreleased] section
+    4. Updates Version: in vmware.spec
+    5. Generates the RPM %changelog entry
+    6. Updates CHANGELOG comparison links
+    7. Validates the generated CHANGELOG
+    8. Validates the generated SPEC
+    9. Validates the SPEC with rpmspec when available
 
 The script does NOT:
 
@@ -111,6 +112,12 @@ RPM_CHANGELOG_NAME="${RPM_CHANGELOG_NAME:-$(git config user.name || true)}"
 RPM_CHANGELOG_EMAIL="${RPM_CHANGELOG_EMAIL:-$(git config user.email || true)}"
 
 [[ -n "$RPM_CHANGELOG_NAME" ]] ||
+    RPM_CHANGELOG_NAME="hhlp"
+
+[[ -n "$RPM_CHANGELOG_EMAIL" ]] ||
+    RPM_CHANGELOG_EMAIL="2659606+hhlp@users.noreply.github.com"
+
+[[ -n "$RPM_CHANGELOG_NAME" ]] ||
     die "Unable to determine RPM changelog name. Configure git user.name or RPM_CHANGELOG_NAME."
 
 [[ -n "$RPM_CHANGELOG_EMAIL" ]] ||
@@ -195,11 +202,7 @@ awk '
         line = $0
         sub(/^[[:space:]]+/, "", line)
 
-        if (
-            line != "" &&
-            line !~ /^```/ &&
-            line !~ /^###/
-        ) {
+        if (line != "" && line !~ /^```/ && line !~ /^###/) {
             item = item " " line
         }
 
@@ -221,44 +224,43 @@ awk '
 # ------------------------------------------------------------
 # Create new CHANGELOG release section.
 #
-# The existing [Unreleased] body becomes the new release body.
-#
-# Before:
-#
-# ## [Unreleased]
-#
-# ### Fixed
-#
-# - Some fix.
-#
-# ---
-#
-# ## [1.0.0] - ...
-#
-# After:
-#
-# ## [Unreleased]
-#
-# ---
-#
-# ## [1.0.1] - YYYY-MM-DD
-#
-# ### Fixed
-#
-# - Some fix.
-#
-# ---
-#
-# ## [1.0.0] - ...
+# The current [Unreleased] contents become the new release.
+# A fresh empty [Unreleased] section is created automatically.
 # ------------------------------------------------------------
 
-awk -v version="$VERSION" -v date="$RELEASE_DATE" '
+awk \
+    -v version="$VERSION" \
+    -v date="$RELEASE_DATE" '
     /^## \[Unreleased\]$/ {
-        print
+        print "## [Unreleased]"
+        print ""
+        print "### Added"
+        print ""
+        print "### Changed"
+        print ""
+        print "### Fixed"
+        print ""
+        print "### Security"
         print ""
         print "---"
         print ""
         print "## [" version "] - " date
+
+        in_unreleased = 1
+        next
+    }
+
+    in_unreleased && /^---$/ {
+        next
+    }
+
+    in_unreleased && /^## \[[^]]+\]/ {
+        in_unreleased = 0
+
+        print ""
+        print "---"
+        print ""
+        print
         next
     }
 
@@ -272,30 +274,40 @@ awk -v version="$VERSION" -v date="$RELEASE_DATE" '
 #
 # Before:
 #
-# [Unreleased]: https://github.com/hhlp/vmware/compare/v1.0.0...HEAD
+# [Unreleased]: .../compare/v1.0.3...HEAD
 #
 # After:
 #
-# [Unreleased]: https://github.com/hhlp/vmware/compare/v1.0.1...HEAD
-# [1.0.1]: https://github.com/hhlp/vmware/compare/v1.0.0...v1.0.1
+# [Unreleased]: .../compare/v1.0.4...HEAD
+# [1.0.4]: .../compare/v1.0.3...v1.0.4
 # ------------------------------------------------------------
 
 EXPECTED_UNRELEASED_LINK="$(
-    printf '%s/compare/v%s...HEAD' "$REPO_URL" "$CURRENT_VERSION"
+    printf '%s/compare/v%s...HEAD' \
+        "$REPO_URL" \
+        "$CURRENT_VERSION"
 )"
 
 NEW_UNRELEASED_LINK="$(
-    printf '%s/compare/v%s...HEAD' "$REPO_URL" "$VERSION"
+    printf '%s/compare/v%s...HEAD' \
+        "$REPO_URL" \
+        "$VERSION"
 )"
 
 NEW_RELEASE_LINK="$(
-    printf '%s/compare/v%s...v%s' "$REPO_URL" "$CURRENT_VERSION" "$VERSION"
+    printf '%s/compare/v%s...v%s' \
+        "$REPO_URL" \
+        "$CURRENT_VERSION" \
+        "$VERSION"
 )"
 
 grep -Fq "[Unreleased]: $EXPECTED_UNRELEASED_LINK" "$NEW_CHANGELOG" ||
     die "Unable to locate expected [Unreleased] comparison link: $EXPECTED_UNRELEASED_LINK"
 
-awk -v old="[Unreleased]: $EXPECTED_UNRELEASED_LINK" -v unreleased="[Unreleased]: $NEW_UNRELEASED_LINK" -v release="[$VERSION]: $NEW_RELEASE_LINK" '
+awk \
+    -v old="[Unreleased]: $EXPECTED_UNRELEASED_LINK" \
+    -v unreleased="[Unreleased]: $NEW_UNRELEASED_LINK" \
+    -v release="[$VERSION]: $NEW_RELEASE_LINK" '
     $0 == old {
         print unreleased
         print release
@@ -313,7 +325,8 @@ mv "$NEW_CHANGELOG_LINKS" "$NEW_CHANGELOG"
 # Update SPEC Version
 # ------------------------------------------------------------
 
-awk -v version="$VERSION" '
+awk \
+    -v version="$VERSION" '
     $1 == "Version:" {
         printf "%-15s %s\n", "Version:", version
         next
@@ -329,14 +342,20 @@ awk -v version="$VERSION" '
 # ------------------------------------------------------------
 
 RPM_HEADER="$(
-    printf '* %s %s <%s> - %s-1' "$RPM_DATE" "$RPM_CHANGELOG_NAME" "$RPM_CHANGELOG_EMAIL" "$VERSION"
+    printf '* %s %s <%s> - %s-1' \
+        "$RPM_DATE" \
+        "$RPM_CHANGELOG_NAME" \
+        "$RPM_CHANGELOG_EMAIL" \
+        "$VERSION"
 )"
 
 # ------------------------------------------------------------
 # Add RPM %changelog entry
 # ------------------------------------------------------------
 
-awk -v header="$RPM_HEADER" -v items="$RPM_ITEMS" '
+awk \
+    -v header="$RPM_HEADER" \
+    -v items="$RPM_ITEMS" '
     {
         print
     }
@@ -361,6 +380,21 @@ mv "$NEW_SPEC_WITH_CHANGELOG" "$NEW_SPEC"
 
 grep -Fq "## [$VERSION] - $RELEASE_DATE" "$NEW_CHANGELOG" ||
     die "Generated CHANGELOG does not contain release $VERSION"
+
+grep -Fq "## [Unreleased]" "$NEW_CHANGELOG" ||
+    die "Generated CHANGELOG does not contain [Unreleased]"
+
+grep -Fq "### Added" "$NEW_CHANGELOG" ||
+    die "Generated CHANGELOG does not contain Added section"
+
+grep -Fq "### Changed" "$NEW_CHANGELOG" ||
+    die "Generated CHANGELOG does not contain Changed section"
+
+grep -Fq "### Fixed" "$NEW_CHANGELOG" ||
+    die "Generated CHANGELOG does not contain Fixed section"
+
+grep -Fq "### Security" "$NEW_CHANGELOG" ||
+    die "Generated CHANGELOG does not contain Security section"
 
 grep -Fq "[Unreleased]: $NEW_UNRELEASED_LINK" "$NEW_CHANGELOG" ||
     die "Generated CHANGELOG has invalid [Unreleased] link"
@@ -413,7 +447,8 @@ if command -v rpmspec >/dev/null 2>&1; then
     rpmspec -P "$NEW_SPEC" >/dev/null ||
         die "Generated SPEC failed rpmspec validation"
 else
-    printf '%s\n' "WARNING: rpmspec is not installed; SPEC validation skipped." >&2
+    printf '%s\n' \
+        "WARNING: rpmspec is not installed; SPEC validation skipped." >&2
 fi
 
 # ------------------------------------------------------------
@@ -437,7 +472,9 @@ printf '\n'
 printf '  Previous version : %s\n' "$CURRENT_VERSION"
 printf '  New version      : %s\n' "$VERSION"
 printf '  Release date     : %s\n' "$RELEASE_DATE"
-printf '  RPM changelog    : %s <%s>\n' "$RPM_CHANGELOG_NAME" "$RPM_CHANGELOG_EMAIL"
+printf '  RPM changelog    : %s <%s>\n' \
+    "$RPM_CHANGELOG_NAME" \
+    "$RPM_CHANGELOG_EMAIL"
 
 printf '\n'
 printf '%s\n' 'Updated:'
