@@ -1,0 +1,168 @@
+name: Bug report
+description: Report a problem with vmwmanager
+title: "[Bug]: "
+labels:
+
+* bug
+  body:
+
+* type: markdown
+  attributes:
+  value: |
+  Thanks for reporting a problem with vmwmanager.
+
+  ```
+  Before opening the issue, please determine whether the problem belongs to vmwmanager or to the upstream VMware host modules.
+
+  Problems involving kernel compatibility patches or compilation failures originating inside the VMware modules may belong upstream:
+
+  https://github.com/mkubecek/vmware-host-modules
+  ```
+
+* type: dropdown
+  id: component
+  attributes:
+  label: Component
+  description: Which part of vmwmanager is affected?
+  options:
+  - Module build
+  - Module installation
+  - Module signing / Secure Boot
+  - MOK handling
+  - Rebuild detection
+  - systemd service
+  - RPM packaging
+  - COPR
+  - GitHub Actions
+  - Documentation
+  - Other
+  validations:
+  required: true
+
+* type: input
+  id: fedora
+  attributes:
+  label: Fedora version
+  description: Output of `cat /etc/fedora-release`
+  placeholder: Fedora Linux 43 (...)
+  validations:
+  required: true
+
+* type: input
+  id: kernel
+  attributes:
+  label: Kernel version
+  description: Output of `uname -r`
+  placeholder: 6.x.x-xxx.fcxx.x86_64
+  validations:
+  required: true
+
+* type: input
+  id: vmware
+  attributes:
+  label: VMware version
+  description: Output of `vmware --version`
+  placeholder: VMware Workstation ...
+  validations:
+  required: true
+
+* type: dropdown
+  id: secureboot
+  attributes:
+  label: Secure Boot
+  description: Check with `mokutil --sb-state`
+  options:
+  - Enabled
+  - Disabled
+  - Unknown
+  validations:
+  required: true
+
+* type: input
+  id: vmwmanager_version
+  attributes:
+  label: vmwmanager version
+  description: Installed RPM version, release tag, or Git commit
+  placeholder: 1.0.0
+  validations:
+  required: true
+
+* type: textarea
+  id: description
+  attributes:
+  label: Problem description
+  description: Describe what happened and what you expected to happen.
+  placeholder: |
+  What happened:
+
+  ```
+  What I expected:
+  ```
+
+  validations:
+  required: true
+
+* type: textarea
+  id: reproduce
+  attributes:
+  label: Steps to reproduce
+  placeholder: |
+  1. Run ...
+  2. Run ...
+  3. Observe ...
+  validations:
+  required: true
+
+* type: textarea
+  id: status
+  attributes:
+  label: vmwmanager status
+  description: Paste the relevant output.
+  render: shell
+  placeholder: |
+  sudo vmwmanager status
+
+* type: textarea
+  id: service
+  attributes:
+  label: systemd service status
+  description: If the problem involves automatic rebuilding, include this output.
+  render: shell
+  placeholder: |
+  systemctl status vmware-rebuild.service --no-pager
+
+* type: textarea
+  id: journal
+  attributes:
+  label: Relevant logs
+  description: |
+  Include relevant logs. Remove private information if necessary.
+  render: shell
+  placeholder: |
+  journalctl -u vmware-rebuild.service -b --no-pager
+
+* type: textarea
+  id: additional
+  attributes:
+  label: Additional information
+  description: Add anything else that may help diagnose the problem.
+
+* type: checkboxes
+  id: upstream
+  attributes:
+  label: Upstream check
+  options:
+  - label: I checked whether this is primarily an upstream vmware-host-modules compatibility problem.
+  required: true
+
+* type: checkboxes
+  id: checklist
+  attributes:
+  label: Checklist
+  options:
+  - label: I searched existing issues before opening this report.
+  required: true
+  - label: I included the Fedora, kernel, and VMware versions.
+  required: true
+  - label: I removed passwords, private keys, and other sensitive information from the logs.
+  required: true

@@ -1,0 +1,94 @@
+name: Feature request
+description: Suggest an improvement or new feature for vmwmanager
+title: "[Feature]: "
+labels:
+
+* enhancement
+  body:
+
+* type: markdown
+  attributes:
+  value: |
+  Thanks for suggesting an improvement to vmwmanager.
+
+  ```
+  vmwmanager manages the lifecycle of VMware host modules on Fedora, including building, installing, rebuilding, and Secure Boot signing.
+
+  Requests for new VMware kernel compatibility patches generally belong upstream:
+
+  https://github.com/mkubecek/vmware-host-modules
+  ```
+
+* type: dropdown
+  id: area
+  attributes:
+  label: Area
+  options:
+  - Module management
+  - Module build
+  - Secure Boot / signing
+  - MOK management
+  - Rebuild detection
+  - systemd integration
+  - RPM packaging
+  - COPR
+  - GitHub Actions
+  - Documentation
+  - CLI / UX
+  - Other
+  validations:
+  required: true
+
+* type: textarea
+  id: problem
+  attributes:
+  label: Problem
+  description: What problem would this feature solve?
+  placeholder: Describe the current limitation or inconvenience.
+  validations:
+  required: true
+
+* type: textarea
+  id: solution
+  attributes:
+  label: Proposed solution
+  description: Describe how you would like vmwmanager to behave.
+  validations:
+  required: true
+
+* type: textarea
+  id: alternatives
+  attributes:
+  label: Alternatives considered
+  description: Describe any alternative approaches you considered.
+
+* type: textarea
+  id: example
+  attributes:
+  label: Example
+  description: Show an example CLI, configuration, workflow, or expected output if useful.
+  render: shell
+
+* type: textarea
+  id: additional
+  attributes:
+  label: Additional context
+  description: Add anything else that could help evaluate the request.
+
+* type: checkboxes
+  id: upstream
+  attributes:
+  label: Scope
+  options:
+  - label: This request concerns vmwmanager rather than an upstream VMware kernel compatibility patch.
+  required: true
+
+* type: checkboxes
+  id: checklist
+  attributes:
+  label: Checklist
+  options:
+  - label: I searched existing issues and feature requests first.
+  required: true
+  - label: I described the problem as well as the proposed solution.
+  required: true
