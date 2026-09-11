@@ -10,6 +10,18 @@ The format is based on **Keep a Changelog**, and this project follows **Semantic
 
 ### Added
 
+### Changed
+
+### Fixed
+
+### Security
+
+---
+
+## [1.0.1] - 2026-09-11
+
+### Added
+
 - Added `purge` command to process vmwmanager integration cleanup and then remove the `vmware-manager` RPM through DNF.
 - `purge` leaves VMware Workstation and its host modules outside the vmware-manager RPM lifecycle.
 
@@ -20,6 +32,8 @@ The format is based on **Keep a Changelog**, and this project follows **Semantic
 ### Fixed
 
 ### Security
+
+
 
 ---
 
@@ -116,5 +130,6 @@ The format is based on **Keep a Changelog**, and this project follows **Semantic
 - Alternative privileged kernel-module sources are never automatically downloaded or installed.
 - Existing administrator-created systemd service files are not overwritten automatically.
 
-[Unreleased]: https://github.com/hhlp/vmware/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/hhlp/vmware/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/hhlp/vmware/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/hhlp/vmware/releases/tag/v1.0.0

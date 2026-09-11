@@ -1,5 +1,5 @@
 Name:           vmware-manager
-Version:        1.0.0
+Version:        1.0.1
 Release:        1%{?dist}
 Summary:        Secure Boot manager for VMware host modules on Fedora
 
@@ -80,3 +80,7 @@ fi
 %{_bindir}/vmwmanager
 
 %changelog
+* Fri Sep 11 2026 hhlp <2659606+hhlp@users.noreply.github.com> - 1.0.1-1
+- Added `purge` command to process vmwmanager integration cleanup and then remove the `vmware-manager` RPM through DNF.
+- `purge` leaves VMware Workstation and its host modules outside the vmware-manager RPM lifecycle.
+- Kept the existing `uninstall` command behavior unchanged: it cleans vmwmanager integration but does not remove the RPM.
