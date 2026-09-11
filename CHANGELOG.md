@@ -10,7 +10,12 @@ The format is based on **Keep a Changelog**, and this project follows **Semantic
 
 ### Added
 
+- Added `purge` command to process vmwmanager integration cleanup and then remove the `vmware-manager` RPM through DNF.
+- `purge` leaves VMware Workstation and its host modules outside the vmware-manager RPM lifecycle.
+
 ### Changed
+
+- Kept the existing `uninstall` command behavior unchanged: it cleans vmwmanager integration but does not remove the RPM.
 
 ### Fixed
 

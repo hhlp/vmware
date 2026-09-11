@@ -18,6 +18,7 @@ Requires:       mokutil
 Requires:       kmod
 Requires:       systemd
 Requires:       sudo
+Requires:       /usr/bin/dnf
 
 %description
 vmware-manager is a Fedora management utility for building, signing,
@@ -42,6 +43,10 @@ package.
 install -Dpm0755 vmwmanager.sh \
     %{buildroot}%{_bindir}/vmwmanager
 
+# $1 == 0 means final package removal.
+# Interactive cleanup is intentionally not performed from RPM scriptlets.
+# The recommended complete-removal path is `vmwmanager purge`, which
+# performs cleanup before asking DNF to remove this package.
 %preun
 if [ "$1" -eq 0 ]; then
     if [ -e /etc/systemd/system/vmware-rebuild.service ] ||
@@ -51,12 +56,13 @@ if [ "$1" -eq 0 ]; then
         echo
         echo "vmware-manager integration may still be configured."
         echo
-        echo "Before removing the package completely, consider running:"
+        echo "For complete cleanup before RPM removal, cancel this transaction"
+        echo "and run:"
         echo
-        echo "    sudo vmwmanager uninstall"
+        echo "    sudo vmwmanager purge"
         echo
-        echo "This can disable vmware-rebuild.service and optionally"
-        echo "remove the VMware MOK/signing-key integration."
+        echo "The purge command processes vmwmanager integration resources"
+        echo "and then starts the DNF removal transaction itself."
         echo
     fi
 fi

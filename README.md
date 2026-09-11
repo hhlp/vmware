@@ -36,6 +36,7 @@ It is designed for Fedora systems using Secure Boot and Machine Owner Keys (MOK)
   - [enable-systemd](#enable-systemd)
   - [disable-systemd](#disable-systemd)
   - [uninstall](#uninstall)
+  - [purge](#purge)
 - [Secure Boot and MOK](#secure-boot-and-mok)
 - [Kernel Handling](#kernel-handling)
 - [VMware Module Compilation](#vmware-module-compilation)
@@ -342,6 +343,7 @@ needs-rebuild
 rebuild
 reinstall
 uninstall
+purge
 enable-systemd
 disable-systemd
 help
@@ -666,6 +668,33 @@ If VMware Workstation is still installed, the manager displays the native VMware
 ```bash
 sudo vmware-installer -u vmware-workstation
 ```
+
+## purge
+
+```bash
+sudo vmwmanager purge
+```
+
+`purge` keeps the existing `uninstall` behavior intact, performs that same integration cleanup, and then starts removal of the `vmware-manager` RPM through DNF.
+
+After local resources have been processed, it displays:
+
+```text
+============================================================
+ Local vmware-manager resources have been processed.
+
+ The vmware-manager RPM will now be removed.
+ DNF will ask for final transaction confirmation.
+============================================================
+```
+
+It then runs the equivalent of:
+
+```bash
+sudo dnf remove vmware-manager
+```
+
+DNF still asks for final transaction confirmation. `purge` does not uninstall VMware Workstation and does not manually remove `vmmon.ko` or `vmnet.ko`.
 
 ---
 
@@ -1087,7 +1116,7 @@ and complete enrollment in MOK Manager.
 
 # Uninstallation
 
-There are two separate concepts.
+There are three separate concepts.
 
 ## Remove vmwmanager integration
 
@@ -1109,9 +1138,19 @@ optionally remove local signing keys
 
 It does not uninstall VMware Workstation.
 
-## Remove the RPM
+## Purge vmwmanager integration and remove the RPM
 
-After cleaning the integration:
+To process the same integration cleanup and then remove the RPM in one command:
+
+```bash
+sudo vmwmanager purge
+```
+
+The original `uninstall` command remains unchanged and does not remove the RPM.
+
+## Remove the RPM directly
+
+If integration cleanup is not required, the package can still be removed directly:
 
 ```bash
 sudo dnf remove vmware-manager

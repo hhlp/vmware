@@ -41,11 +41,12 @@ vmnet.ko
 - [20. VMware Compilation Failure Tests](#20-vmware-compilation-failure-tests)
 - [21. disable-systemd Tests](#21-disable-systemd-tests)
 - [22. uninstall Tests](#22-uninstall-tests)
-- [23. VMware-Absent Tests](#23-vmware-absent-tests)
-- [24. Idempotency Tests](#24-idempotency-tests)
-- [25. Regression Matrix](#25-regression-matrix)
-- [26. Final Acceptance Test](#26-final-acceptance-test)
-- [27. Expected Final State](#27-expected-final-state)
+- [23. purge Tests](#23-purge-tests)
+- [24. VMware-Absent Tests](#24-vmware-absent-tests)
+- [25. Idempotency Tests](#25-idempotency-tests)
+- [26. Regression Matrix](#26-regression-matrix)
+- [27. Final Acceptance Test](#27-final-acceptance-test)
+- [28. Expected Final State](#28-expected-final-state)
 
 ---
 
@@ -67,7 +68,9 @@ The test plan verifies that `vmwmanager`:
 12. rebuilds modules after a kernel change;
 13. does not silently install alternative host-module implementations;
 14. safely removes manager integration;
-15. remains usable for cleanup when VMware Workstation is absent.
+15. remains usable for cleanup when VMware Workstation is absent;
+16. preserves the original `uninstall` behavior;
+17. removes the RPM only when `purge` reaches its DNF transaction.
 
 ---
 
@@ -1864,13 +1867,112 @@ Verify VMware-managed files were not explicitly deleted by `vmwmanager uninstall
 
 ---
 
-# 23. VMware-Absent Tests
+# 23. purge Tests
+
+These tests verify that `purge` is additive and that `uninstall` keeps its original behavior.
+
+---
+
+## TEST 23.1 — uninstall still leaves the RPM installed
+
+Run:
+
+```bash
+sudo vmwmanager uninstall
+rpm -q vmware-manager
+```
+
+Expected:
+
+```text
+PASS:
+- integration cleanup is offered/performed
+- vmware-manager RPM remains installed
+```
+
+---
+
+## TEST 23.2 — purge starts RPM removal
+
+Run:
+
+```bash
+sudo vmwmanager purge
+```
+
+After integration resources are processed, expected output includes:
+
+```text
+============================================================
+ Local vmware-manager resources have been processed.
+
+ The vmware-manager RPM will now be removed.
+ DNF will ask for final transaction confirmation.
+============================================================
+```
+
+DNF must then present the `vmware-manager` removal transaction.
+
+---
+
+## TEST 23.3 — cancel purge DNF transaction
+
+At the final DNF confirmation, answer `N`.
+
+Expected:
+
+```text
+PASS:
+- local vmwmanager resources were already processed
+- vmware-manager RPM remains installed
+- purge returns non-zero because package removal was cancelled
+```
+
+Verify:
+
+```bash
+rpm -q vmware-manager
+```
+
+---
+
+## TEST 23.4 — confirm purge DNF transaction
+
+Reinstall/restore the test state as required, then run:
+
+```bash
+sudo vmwmanager purge
+```
+
+Confirm the DNF transaction.
+
+Expected:
+
+```text
+PASS:
+- vmware-manager RPM is removed
+- /usr/bin/vmwmanager is removed with the RPM
+- VMware Workstation remains installed
+- vmmon.ko and vmnet.ko are not manually deleted by vmwmanager
+```
+
+Verify:
+
+```bash
+rpm -q vmware-manager
+command -v vmwmanager
+vmware-installer -l
+```
+
+---
+
+# 24. VMware-Absent Tests
 
 These tests verify that cleanup remains possible after VMware Workstation has already been removed.
 
 ---
 
-## TEST 23.1 — status without VMware
+## TEST 24.1 — status without VMware
 
 With VMware absent:
 
@@ -1889,7 +1991,7 @@ The command should continue displaying other available diagnostics.
 
 ---
 
-## TEST 23.2 — disable-systemd without VMware
+## TEST 24.2 — disable-systemd without VMware
 
 Run:
 
@@ -1907,7 +2009,7 @@ VMware installation is not required.
 
 ---
 
-## TEST 23.3 — uninstall without VMware
+## TEST 24.3 — uninstall without VMware
 
 Run:
 
@@ -1927,7 +2029,7 @@ PASS:
 
 ---
 
-## TEST 23.4 — rebuild without VMware
+## TEST 24.4 — rebuild without VMware
 
 Run:
 
@@ -1950,7 +2052,7 @@ Exit:
 
 ---
 
-## TEST 23.5 — enable-systemd without VMware
+## TEST 24.5 — enable-systemd without VMware
 
 Run:
 
@@ -1974,9 +2076,9 @@ Exit:
 
 ---
 
-# 24. Idempotency Tests
+# 25. Idempotency Tests
 
-## TEST 24.1 — genkey twice
+## TEST 25.1 — genkey twice
 
 Run:
 
@@ -1993,7 +2095,7 @@ existing key preserved
 
 ---
 
-## TEST 24.2 — rebuild twice
+## TEST 25.2 — rebuild twice
 
 Run:
 
@@ -2010,7 +2112,7 @@ Nothing to rebuild.
 
 ---
 
-## TEST 24.3 — enable-systemd twice
+## TEST 25.3 — enable-systemd twice
 
 Run:
 
@@ -2028,7 +2130,7 @@ service already enabled
 
 ---
 
-## TEST 24.4 — disable-systemd twice
+## TEST 25.4 — disable-systemd twice
 
 Run:
 
@@ -2047,7 +2149,7 @@ no systemd changes required
 
 ---
 
-# 25. Regression Matrix
+# 26. Regression Matrix
 
 Use the following matrix before each release.
 
@@ -2083,12 +2185,14 @@ Use the following matrix before each release.
 | disable-systemd | Second run | idempotent |
 | uninstall | VMware installed | VMware preserved |
 | uninstall | VMware absent | safe |
+| purge | DNF cancelled | RPM remains installed |
+| purge | DNF confirmed | RPM removed, VMware preserved |
 | New kernel | Before reboot | old running kernel managed |
 | New kernel | After reboot | new running kernel managed |
 
 ---
 
-# 26. Final Acceptance Test
+# 27. Final Acceptance Test
 
 Before publishing a release, perform the following sequence on a Fedora Secure Boot system.
 
@@ -2264,7 +2368,7 @@ Start VMware Workstation and confirm that a virtual machine can power on normall
 
 ---
 
-# 27. Expected Final State
+# 28. Expected Final State
 
 A release candidate passes when the machine reaches:
 
@@ -2308,6 +2412,13 @@ Kernel update
            whose VMware modules are missing
 
 vmwmanager uninstall
+        ✅ keeps its original cleanup-only behavior
+        ✅ does not remove the vmware-manager RPM
+        ✅ does not uninstall VMware Workstation
+
+vmwmanager purge
+        ✅ processes local integration cleanup
+        ✅ removes the vmware-manager RPM through DNF when confirmed
         ✅ does not uninstall VMware Workstation
 
 Alternative module fallback

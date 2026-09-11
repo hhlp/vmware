@@ -15,6 +15,7 @@
 #   rebuild
 #   reinstall
 #   uninstall
+#   purge
 #   enable-systemd
 #   disable-systemd
 #   help
@@ -22,7 +23,7 @@
 # Design:
 #   - VMware Workstation must already be installed for:
 #       genkey, needs-rebuild, rebuild, reinstall, enable-systemd
-#   - status, disable-systemd and uninstall are safe even when
+#   - status, disable-systemd, uninstall and purge are safe even when
 #     VMware Workstation is not installed.
 #   - No automatic fallback is used if VMware module compilation
 #     fails. Alternative projects may be suggested, but never
@@ -47,6 +48,7 @@ KEY_DER="$KEY_DIR/vmware.der"
 CN_MATCH="CN=VMware Module Signing"
 
 PROGRAM_PATH="/usr/bin/vmwmanager"
+PACKAGE_NAME="vmware-manager"
 
 VMWARE_SERVICE_NAME="vmware.service"
 
@@ -84,8 +86,7 @@ vmware_workstation_is_installed() {
             END {
                 exit(found ? 0 : 1)
             }
-        ' <<<"$inventory"
-        then
+        ' <<<"$inventory"; then
             return 0
         fi
     fi
@@ -223,8 +224,7 @@ restart_vmware_service() {
     if ! systemctl list-unit-files \
         "$VMWARE_SERVICE_NAME" \
         --no-legend 2>/dev/null |
-        grep -q "^${VMWARE_SERVICE_NAME}[[:space:]]"
-    then
+        grep -q "^${VMWARE_SERVICE_NAME}[[:space:]]"; then
         echo "❌ VMware service is not installed:"
         echo "   $VMWARE_SERVICE_NAME"
         return 1
@@ -483,8 +483,7 @@ show_status() {
 
     echo "⚙️ vmwmanager systemd integration:"
     if systemctl is-enabled \
-        "$SYSTEMD_SERVICE_NAME" >/dev/null 2>&1
-    then
+        "$SYSTEMD_SERVICE_NAME" >/dev/null 2>&1; then
         echo "   ✅ Enabled: $SYSTEMD_SERVICE_NAME"
     elif [[ -f "$SYSTEMD_SERVICE" ]]; then
         echo "   ⚠️ Unit exists but is disabled:"
@@ -801,7 +800,7 @@ build_vmware_modules() {
         echo "❌ VMware host module compilation/install failed."
         echo
 
-        if (( modconfig_rc != 0 )); then
+        if ((modconfig_rc != 0)); then
             echo "vmware-modconfig exit code:"
             echo "   $modconfig_rc"
             echo
@@ -827,7 +826,7 @@ build_vmware_modules() {
 
     echo
 
-    if (( modconfig_rc != 0 )); then
+    if ((modconfig_rc != 0)); then
         echo "⚠️ vmware-modconfig returned exit code:"
         echo "   $modconfig_rc"
         echo
@@ -1095,8 +1094,7 @@ EOF
     fi
 
     if systemctl is-enabled \
-        "$SYSTEMD_SERVICE_NAME" >/dev/null 2>&1
-    then
+        "$SYSTEMD_SERVICE_NAME" >/dev/null 2>&1; then
         echo "✅ systemd service is already enabled:"
         echo "   $SYSTEMD_SERVICE_NAME"
     else
@@ -1154,8 +1152,7 @@ disable_systemd() {
     echo
 
     if systemctl is-enabled \
-        "$SYSTEMD_SERVICE_NAME" >/dev/null 2>&1
-    then
+        "$SYSTEMD_SERVICE_NAME" >/dev/null 2>&1; then
         echo "⚙️ systemd service is enabled:"
         echo "   $SYSTEMD_SERVICE_NAME"
         echo
@@ -1202,8 +1199,7 @@ disable_systemd() {
     fi
 
     if systemctl is-failed \
-        "$SYSTEMD_SERVICE_NAME" >/dev/null 2>&1
-    then
+        "$SYSTEMD_SERVICE_NAME" >/dev/null 2>&1; then
         echo
         echo "⚠️ Service has a failed state."
         echo "→ Clearing failed state..."
@@ -1259,8 +1255,7 @@ uninstall_manager() {
                     -in "$f" \
                     -noout \
                     -subject 2>/dev/null |
-                    grep -Fq "$CN_MATCH"
-                then
+                    grep -Fq "$CN_MATCH"; then
                     der_to_delete="$tmp_dir/$f"
                     break
                 fi
@@ -1347,6 +1342,45 @@ uninstall_manager() {
         echo "ℹ️ VMware Workstation is not installed."
         echo "ℹ️ No VMware uninstall action is required."
     fi
+}
+
+# ============================================================
+# PURGE VMWMANAGER
+#
+# Performs the existing uninstall cleanup and then removes the
+# vmware-manager RPM through DNF. VMware Workstation itself is
+# not removed.
+# ============================================================
+
+purge_manager() {
+    echo "=== 🧹 Purging vmware-manager ==="
+    echo
+
+    if ! command -v dnf >/dev/null 2>&1; then
+        echo "❌ DNF is not available."
+        echo "   Cannot remove the $PACKAGE_NAME RPM."
+        return 1
+    fi
+
+    uninstall_manager
+
+    echo
+    echo "============================================================"
+    echo " Local vmware-manager resources have been processed."
+    echo
+    echo " The $PACKAGE_NAME RPM will now be removed."
+    echo " DNF will ask for final transaction confirmation."
+    echo "============================================================"
+    echo
+
+    if run_root dnf remove "$PACKAGE_NAME"; then
+        return 0
+    fi
+
+    echo
+    echo "⚠️ $PACKAGE_NAME RPM removal was cancelled or failed."
+    echo "   Local vmwmanager resources were already processed."
+    return 1
 }
 
 # ============================================================
@@ -1437,6 +1471,17 @@ Commands:
         If VMware Workstation is still installed, the command shows:
             sudo vmware-installer -u vmware-workstation
 
+    purge
+        VMware Workstation is NOT required.
+
+        Perform the same vmwmanager integration cleanup as uninstall,
+        then remove the vmware-manager RPM through DNF.
+
+        DNF asks for final transaction confirmation before removing:
+            $PACKAGE_NAME
+
+        VMware Workstation and its host modules are NOT removed.
+
     enable-systemd
         Require VMware Workstation to be installed.
 
@@ -1506,6 +1551,10 @@ case "$cmd" in
 
     uninstall)
         uninstall_manager
+        ;;
+
+    purge)
+        purge_manager
         ;;
 
     enable-systemd)

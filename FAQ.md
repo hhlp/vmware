@@ -56,6 +56,8 @@ Frequently Asked Questions about `vmware-manager`, VMware Workstation host modul
 - [Uninstallation](#uninstallation)
   - [Does vmwmanager uninstall VMware Workstation?](#does-vmwmanager-uninstall-vmware-workstation)
   - [What does vmwmanager uninstall remove?](#what-does-vmwmanager-uninstall-remove)
+  - [What does vmwmanager purge do?](#what-does-vmwmanager-purge-do)
+  - [What is the difference between uninstall and purge?](#what-is-the-difference-between-uninstall-and-purge)
   - [Does uninstall automatically delete the MOK?](#does-uninstall-automatically-delete-the-mok)
   - [Does uninstall delete vmmon.ko and vmnet.ko?](#does-uninstall-delete-vmmonko-and-vmnetko)
   - [How do I completely remove VMware Workstation?](#how-do-i-completely-remove-vmware-workstation)
@@ -115,6 +117,7 @@ Other operations including:
 status
 disable-systemd
 uninstall
+purge
 ```
 
 are designed to remain usable when VMware Workstation is absent.
@@ -867,6 +870,34 @@ remove local vmware.der
 ```
 
 These destructive operations require user confirmation where appropriate.
+
+---
+
+## What does vmwmanager purge do?
+
+Run:
+
+```bash
+sudo vmwmanager purge
+```
+
+`purge` first performs the same integration cleanup as `uninstall`. After those local resources have been processed, it starts:
+
+```bash
+dnf remove vmware-manager
+```
+
+through the script's privilege helper. DNF asks for final transaction confirmation before removing the RPM.
+
+`purge` does not uninstall VMware Workstation and does not manually delete `vmmon.ko` or `vmnet.ko`.
+
+---
+
+## What is the difference between uninstall and purge?
+
+`uninstall` keeps its original behavior: it cleans vmwmanager integration but leaves the `vmware-manager` RPM installed.
+
+`purge` performs that same cleanup and then starts removal of the `vmware-manager` RPM with DNF.
 
 ---
 
